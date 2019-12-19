@@ -50,7 +50,7 @@ From: archlinux/base:latest
 
     ## PISCES
     cd /opt
-    git clone https://username:password@github.com/amandadumi/PISCES.git
+    git clone https://username:password@github.com/username/PISCES.git
     cd PISCES
     mkdir build
     cd build
