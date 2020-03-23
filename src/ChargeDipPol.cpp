@@ -1,3 +1,13 @@
+///////////////////////////////////////////////////////////////////////////////
+///
+///   ChargeDipPol
+/// 
+//
+//  this is for setting up a molecule with interacting atomic polarizability
+//  InvA is the matrix needed to compute the induced dipoles from the "external" E field
+//
+///
+///////////////////////////////////////////////////////////////////////////////
 #include <cstdlib>
 #include <cstdio>
 #include <cmath>
@@ -14,36 +24,46 @@ using namespace std;
 #include "constants.h"
 #include "timer.hpp"
 
-//
-//  this is for setting up a molecule with interacting atomic polarizability
-//  InvA is the matrix needed to compute the induced dipoles from the "external" E field
-//
 
-//////////////////////////////////////////////////////////////
-//
-//   InvA = (alpha^-1 - T)^-1 
-//
-//   this is the matrix that can be multiplied with the electric field at
-//   the polarizable sites to yield the induced dipoles:
-//
-//   mu = InvA * E
-//
-//   dim(A) = 3*nSiyes x 3*nSites
-//
-void InvChargeDipolePol(int nSites, const double *R, double *InvA, int nFullerenes, const int *NoAtomsArray, int CarbonType, int *IonType, int AlphaComp)
+void InvChargeDipolePol(int nSites, /// sites in the grid
+                        const double *R, /// distance 
+                        double *InvA, /// dim(A) = 3 * nSites x 3* nSites
+                        int nFullerenes, /// number of Fullerenes
+                        const int *NoAtomsArray, /// ??
+                        int CarbonType, /// the carbon type defined by the carbons bonding environment.
+                        int *IonType, /// 
+                        int AlphaComp)// What type of interactions to compute
+///////////////////////////////////////////////////////////////////////////////
+///
+///   Calculate dipole polarizabilities on a grid for different interactions depending on
+///   AlphaComp argument where: 
+
+///   $$InvA = (\alpha^{-1} - T)^{-1}$$
+///   which allows for the calculation of $\mu$, the induced dipoles,
+///   by multiplicaton with the electric field at
+///   the polarizable sites to yield the induced dipoles:
+///   $$ mu = InvA * E $$
+///
+///   AlphaComp = 1 charge-charge term
+///             = 2 cross term
+///             = 3 dipole-dipole term
+///             = 4 sum of terms
+///             
+///
+///////////////////////////////////////////////////////////////////////////////
 {
 
- int verbose = 0;
+int verbose = 0;
 progress_timer t("ComputeInvPolarization", verbose);
 
-  BuildPolarizationMatrix(nSites, R, InvA, nFullerenes, NoAtomsArray, CarbonType, IonType);  
-  InvertCDMatrix(4*nSites+nFullerenes, InvA);
+BuildPolarizationMatrix(nSites, R, InvA, nFullerenes, NoAtomsArray, CarbonType, IonType);  
+InvertCDMatrix(4*nSites+nFullerenes, InvA);
 
- cout<<"start InvA ~~~~"<<endl;
+cout<<"start InvA ~~~~"<<endl;
 
- int n = nSites;
+int n = nSites;
 int n4plus1 = 4*nSites+nFullerenes; 
-double alpha_xx = 0.0;
+double alpha_xx = 0.0; 
 double alpha_yy = 0.0;
 double alpha_zz = 0.0;
 double alpha_xy = 0.0;
@@ -190,7 +210,10 @@ else if (AlphaComp == 4){
  cout<<"alpha_zy = "<<alpha_zy<<endl;
 }
 
-
+///
+/// if an unaccepted argument is given, just do the alpha 4, (sum) routine.
+/// TODO: these should be encapsulated. Here the same code is repeated twice in a row just for different conditons.
+///
 else if (AlphaComp != 1 || AlphaComp != 2 || AlphaComp != 3 || AlphaComp != 4){
   cout<<"! ! ! ! A non-applicable flag was used for AlphaComp. The Sum of all components is being calculated. Here are the options, if needed please modify your input flag: ! ! ! !"<<endl;
   cout<<"AlphaComp = 1: Charge Flow Only"<<endl;
@@ -244,26 +267,40 @@ else if (AlphaComp != 1 || AlphaComp != 2 || AlphaComp != 3 || AlphaComp != 4){
  cout<<"alpha_zy = "<<alpha_zy<<endl;
 }
 }
-//////////////////////////////////////////////////////////////
-//
-//  build matrix A = (alpha^-1 - T)
-//
-//  this is a super matrix consisting of:
-//  
-//  T(qq) T(qd) T(1)
-//  T(qd) T(dd) T(1)
-//  T(1)  T(1)  0 
-//
-void BuildPolarizationMatrix2(int nSites, const double *R, double *A, int nFullerenes, const int *NoAtomsArray)
-{
 
+
+///////////////////////////////////////////////////////////////////////////////
+/// This function is not used, but I want to keep until code flow is better 
+/// understood. 
+///////////////////////////////////////////////////////////////////////////////
+void BuildPolarizationMatrix2(int nSites,
+                              const double *R, //Distance between two ??units??
+                              double *A, // matrix A as defined below
+                              int nFullerenes, 
+                              const int *NoAtomsArray)
+///////////////////////////////////////////////////////////////////////////////
+///
+///  build matrix A = (alpha^-1 - T)
+///
+///  this is a super matrix as defined in Mayer's original model.
+///  The definition can be found in DOI: 10.1021/jp075643g; equation 6.
+///  The super matrix is defined as:
+///  
+///
+///  T(qq) T(qp) T(1)
+///  T(qp) T(pp) T(1)
+///  T(1)  T(1)  0 
+///
+///   where q is induced charge and p is dipole moment.
+///////////////////////////////////////////////////////////////////////////////
+{
   int n = nSites;
   int n3 = n*3 ;
 
   for (int k = 0; k < n3*n3 ; ++k)
     A[k] = 0.0;
   
-//  double R_const = 0.62*1.889725989 ; 
+  //  double R_const = 0.62*1.889725989 ;
   double R_const = 0.68620399*1.889725989 ; 
   double chi = sqrt(2.0/PI)/R_const  ;  
   double Rqq = R_const*sqrt(2.0)  ;
@@ -316,18 +353,28 @@ void BuildPolarizationMatrix2(int nSites, const double *R, double *A, int nFulle
 
 }
 
-
-//////////////////////////////////////////////////////////////
-//
-//  build matrix A = (alpha^-1 - T)
-//
-//  this is a super matrix consisting of:
-//  
-//  T(qq) T(qd) T(1)
-//  T(qd) T(dd) T(1)
-//  T(1)  T(1)  0 
-//
-void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFullerenes, const int *NoAtomsArray, int CarbonType, int *IonType)
+void BuildPolarizationMatrix(int nSites, // sites in grid
+                             const double *R, /// distance 
+                            double *A, /// not sure why this is a double? should be a vec of sorts? 
+                            int nFullerenes, /// number of fullerenes
+                            const int *NoAtomsArray, /// not actually sure
+                            int CarbonType, /// type of carbon defined by the bonding environment
+                            int *IonType) ///
+///////////////////////////////////////////////////////////////////////////////
+///
+///  build matrix A = (alpha^-1 - T)
+///
+///  this is a super matrix as defined in Mayer's original model.
+///  The definition can be found in DOI: 10.1021/jp075643g; equation 6.
+///  The super matrix is defined as:
+///  
+///
+///  T(qq) T(qp) T(1)
+///  T(qp) T(pp) T(1)
+///  T(1)  T(1)  0 
+///
+///   where q is induced charge and p is dipole moment.
+///////////////////////////////////////////////////////////////////////////////
 {
 
   int n = nSites;
@@ -349,10 +396,10 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
   
   double* Matrix= new double[nplus1*nplus1];
   double ChargePen=-1.5;
-// double R_const = 0.62*1.889725989 ; 
-//  double R_const = 0.68620399*1.889725989 ; 
+  // double R_const = 0.62*1.889725989 ; 
+  //  double R_const = 0.68620399*1.889725989 ; 
   double Rqi, Rqj, chi; 
- // double Rqq = R_const*sqrt(2.0)  ;
+  // double Rqq = R_const*sqrt(2.0)  ;
   //cout << "R_const , R_qq" << R_const << " "<<Rqq << endl ; 
   //Tqq
   
@@ -416,42 +463,44 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
 
   //T-lagrange
   int current_atom = 0 ; 
-  int old_atom     = 0 ;    
-  //double Aconst=-341.; // For 8.0 Angstrom of dimer
-  // double Aconst=-11.85; // For 9.0 Angstrom of dimer
- //  double Aconst=-1.0; // 
- //  double Aconst=-4.02; // For 9.25 Angstrom of dimer
- //  double Aconst=-2.08; // For 9.50 Angstrom of dimer
- //  double Aconst=-1.9811; // For fit 9.50 Angstrom of dimer
-  // double Aconst=-1.03; // For 9.75 Angstrom of dimer
- //  double Aconst=-1.1209; // For fit 9.75 Angstrom of dimer
- //  double Aconst=-0.525; // For 10.05 Angstgrom of dimer
- //  double Aconst=-0.566; // For fit 10.05 Angstgrom of dimer
-  // double Aconst=-0.345; // For 10.25 Angstgrom of dimer
-  // double Aconst=-0.3589; // For fit 10.25 Angstgrom of dimer
-  //double Aconst=-0.21; // For 10.50 Angstgrom of dimer
- //double Aconst=-0.2031; // For fit 10.50 Angstgrom of dimer
- // double Aconst=-0.128; // For 10.75 Angstgrom of dimer
- // double Aconst=-0.079; // For 11.0 Angstrom of dimer 
- // double Aconst=-0.065; // For fit 11.0 Angstrom of dimer 
- // double Aconst=-0.0091; // For 12.0 Angstrom of dimer 
- double Aconst=-0.0067; // For fit 12.0 Angstrom of dimer 
+  int old_atom     = 0 ;
+  //TODO: Figure out what all of these are??
+  //double Aconst=-341.;  // For 8.0 Angstrom of dimer
+  //double Aconst=-11.85; // For 9.0 Angstrom of dimer
+  //double Aconst=-1.0;   // 
+  //double Aconst=-4.02;  // For 9.25 Angstrom of dimer
+  //double Aconst=-2.08;  // For 9.50 Angstrom of dimer
+  //double Aconst=-1.9811;// For fit 9.50 Angstrom of dimer
+  //double Aconst=-1.03;  // For 9.75 Angstrom of dimer
+  //double Aconst=-1.1209;// For fit 9.75 Angstrom of dimer
+  //double Aconst=-0.525; // For 10.05 Angstgrom of dimer
+  //double Aconst=-0.566; // For fit 10.05 Angstgrom of dimer
+  //double Aconst=-0.345; // For 10.25 Angstgrom of dimer
+  //double Aconst=-0.3589;// For fit 10.25 Angstgrom of dimer
+  //double Aconst=-0.21;  // For 10.50 Angstgrom of dimer
+  //double Aconst=-0.2031;// For fit 10.50 Angstgrom of dimer
+  //double Aconst=-0.128; // For 10.75 Angstgrom of dimer
+  //double Aconst=-0.079; // For 11.0 Angstrom of dimer 
+  //double Aconst=-0.065; // For fit 11.0 Angstrom of dimer 
+  //double Aconst=-0.0091;// For 12.0 Angstrom of dimer 
+  double Aconst=-0.0067;  // For fit 12.0 Angstrom of dimer 
   //double Aconst=-0.0003; // For 13.0 Angstrom of dimer 
-//  double Aconst=-0.00000001; // For 14.0 Angstrom of dimer 
-  // double Aconst= 0.0000000;
+  //double Aconst=-0.00000001; // For 14.0 Angstrom of dimer 
+  //double Aconst= 0.0000000;
 
 
 
  //double Bconst= -11.85; 
- //  double Bconst=-11.85; // For 9.0 Angstrom of dimer
- //  double Bconst=-4.02; // For 9.25 Angstrom of dimer
- //  double Bconst=-2.08; // For 9.50 Angstrom of dimer
- //  double Bconst=-1.03; // For 9.75 Angstrom of dimer
+ //double Bconst=-11.85; // For 9.0 Angstrom of dimer
+ //double Bconst=-4.02;  // For 9.25 Angstrom of dimer
+ //double Bconst=-2.08;  // For 9.50 Angstrom of dimer
+ //double Bconst=-1.03;  // For 9.75 Angstrom of dimer
    double Bconst=-0.525; // For 10.05 Angstgrom of dimer
- //  double Bconst=-0.345; // For 10.25 Angstgrom of dimer
- // double Bconst=-0.079; // For 11.0 Angstrom of dimer 
- // double Bconst=-0.0091; // For 12.0 Angstrom of dimer 
- // double Bconst= 0.000000; 
+ //double Bconst=-0.345; // For 10.25 Angstgrom of dimer
+ //double Bconst=-0.079; // For 11.0 Angstrom of dimer 
+ //double Bconst=-0.0091; // For 12.0 Angstrom of dimer 
+ //double Bconst= 0.000000; 
+
   for ( int iFuller = 0 ; iFuller < nFullerenes ; ++iFuller){
     old_atom      = current_atom ;
     current_atom += NoAtomsArray[iFuller] ;
@@ -485,11 +534,12 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
      }
 */
      // cout<< "A[ "<<i*n4plus1+n4 + iFuller<<"]= "<<A[i*n4plus1+n4 + iFuller]<<endl; 
-    //  cout<< "A[ "<<i*n4plus1+n4 + iFuller-1<<"]= "<<A[i*n4plus1+n4 + iFuller-1]<<endl; 
+     // cout<< "A[ "<<i*n4plus1+n4 + iFuller-1<<"]= "<<A[i*n4plus1+n4 + iFuller-1]<<endl; 
      // cout<< "A[ "<<n4plus1*n4 + n4plus1*iFuller + i<<"]= "<<A[n4plus1*n4 + n4plus1*iFuller + i]<<endl; 
      // A[i*n4plus1+n4 + iFuller]               = 0.0 ; // corresponds to columns of lagrange vector
      //  A[n4plus1*n4 + n4plus1*iFuller + i]     = 0.0 ; // corresponds to rows of lagrange rows
     }
+
     if (iFuller == 0 ) {
       cout<<"nFullerenes="<<nFullerenes<<endl;
       if (nFullerenes == 2 ) {
@@ -499,7 +549,7 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
       else if (nFullerenes == 3 ) {
        // A[n4plus1*n4 + n4plus1*iFuller + n4plus1-3]     = Aconst; // corresponds to rows of lagrange rows
        // A[n4plus1*n4 + n4plus1*iFuller + n4plus1-2]     = -Aconst; // corresponds to rows of lagrange rows
-      //  A[n4plus1*n4 + n4plus1*iFuller + n4plus1-1]     = 0.0 ; // corresponds to rows of lagrange rows
+       // A[n4plus1*n4 + n4plus1*iFuller + n4plus1-1]     = 0.0 ; // corresponds to rows of lagrange rows
 // triangle
        A[n4plus1*n4 + n4plus1*iFuller + n4plus1-3]     = Aconst+Aconst; // corresponds to rows of lagrange rows
        A[n4plus1*n4 + n4plus1*iFuller + n4plus1-2]     = -Aconst; // corresponds to rows of lagrange rows
@@ -552,20 +602,18 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
   double alpha_parC, alpha_perpC, alpha_parH, alpha_perpH;
 
    if (CarbonType == 1) { 
+     //TODO: understand these different parameters, probably store them in a reference class just for varibale information.
      // R_const=0.67200149;
-    //  alpha_parC = 1.2517105;
-    //  alpha_perpC =1.2517105; 
-    
+     // alpha_parC = 1.2517105;
+     // alpha_perpC =1.2517105; 
       alpha_parC = 1.214899;
       alpha_perpC =1.214899; 
       R_const= 0.68620399;
     //  R_const= 0.66329437;
     //  alpha_parC = 1.41 ; 
     //  alpha_perpC = 1.14 ;
-
     //  alpha_parC = 1.4499997 ; 
     //  alpha_perpC = 0.54496647 ;
-
     //  alpha_perpC = 1.4499997 ; 
     //  alpha_parC = 0.54496647 ;
    }
@@ -727,12 +775,6 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
         Txy = 3.0*rij[0]*rij[1]*fac1 - rij[0]*rij[1]*fac2 ;
         Txz = 3.0*rij[0]*rij[2]*fac1 - rij[0]*rij[2]*fac2 ;
         Tyz = 3.0*rij[1]*rij[2]*fac1 - rij[1]*rij[2]*fac2 ;
-
-
-
-
-
-
 
         A[n*n4plus1+3*i*n4plus1 +                  n+j*3+0] = -1.0*((3.0*rij[0]*rij[0]-Rij*Rij)*fac1 - rij[0]*rij[0]*fac2) ; 
         A[n*n4plus1+3*i*n4plus1 +n4plus1+          n+j*3+1] = -1.0*((3.0*rij[1]*rij[1]-Rij*Rij)*fac1 - rij[1]*rij[1]*fac2) ; 
@@ -915,17 +957,21 @@ void BuildPolarizationMatrix(int nSites, const double *R, double *A, int nFuller
 //    }
 }
 
-/////////////////////////////////////////////////
-//
-//  symmetric matrix A is inverted in place
-//
-void InvertCDMatrix(int n, double *A)
-{
 
+void InvertCDMatrix(int n, ///
+                    double *A /// super matrix of induced charge and induced dipole interactions
+ )
+/////////////////////////////////////////////////////////////////////////////////
+///  symmetric matrix A is inverted in place
+///  an abstraction of just the inversion process.
+///////////////////////////////////////////////////////////////////////////////
+{
+  // this is called repeatedly to invert 9x9 matrices, but only during setup, so
+  // static vectors should be fine here as long as nobody calls this in mutiple threads
   int N = n;
   char uplo = 'U';
-  static iVec ipiv; ipiv.resize(n);    // this is called repeatedly to invert 9x9 matrices, but only during setup, so
-  static dVec work; work.resize(n*n);  // static vectors should be fine here as long as nobody calls this in mutiple threads
+  static iVec ipiv; ipiv.resize(n);   
+  static dVec work; work.resize(n*n);  
   int lwork = n*n;
   int info;
  // static dVec B; B.resize(n*n);
@@ -969,22 +1015,29 @@ void InvertCDMatrix(int n, double *A)
     // cout<<"2 symmetry check =" << A[n*i+j]- A[i+n*j]<<endl;
      //if (abs(A[n*i+j]- A[i+n*j]) >= 0.00001 ) cout<<"symmetry check =" << A[n*i+j]- A[i+n*j]<<endl;
   delete [] B;
-
+//TODO: remove B, seems to be created and deleted, but never used.
 }
 
-
-
-//////////////////////////////////////////////////////////////
-//
-//  build matrix A = (alpha^-1 - T)
-//
-//  this is a super matrix consisting of:
-//  
-//  T(qq) T(qd) T(1)
-//  T(qd) T(dd) T(1)
-//  T(1)  T(1)  0 
-//
+///////////////////////////////////////////////////////////////////////////////
+/// This function is not used, but I want to keep until code flow is better 
+/// understood. 
+///////////////////////////////////////////////////////////////////////////////
 void BuildPolarizationMatrix3(int nSites, const double *R, double *A, int nFullerenes, const int *NoAtomsArray, int CarbonType, int *IonType)
+///////////////////////////////////////////////////////////////////////////////
+///
+///  build matrix A = (alpha^-1 - T)
+///
+///  this is a super matrix as defined in Mayer's original model.
+///  The definition can be found in DOI: 10.1021/jp075643g; equation 6.
+///  The super matrix is defined as:
+///  
+///
+///  T(qq) T(qp) T(1)
+///  T(qp) T(pp) T(1)
+///  T(1)  T(1)  0 
+///
+///   where q is induced charge and p is dipole moment.
+///////////////////////////////////////////////////////////////////////////////
 {
 
   int n = nSites;
@@ -1304,6 +1357,12 @@ done:
 
 }
 
+
+///////////////////////////////////////////////////////////////////////////////
+/// This function is not used anywhere in the code, but I want to keep until code flow is better 
+/// understood. 
+/// seems as though it is reinitiated and redefined in DPP.cpp
+///////////////////////////////////////////////////////////////////////////////
 void InverseMatrix(double* Input, double* Output,  int n )
 {
 
