@@ -12,35 +12,51 @@ using namespace std;
 #include "vecdefs.h"
 #include "lapackblas.h"
 
+///////////////////////////////////////////////////////////////////////////////
+///
+///   DerivDDTensor
+/// 
 //
-//  this is for setting up the derivative of the dipole_dipole interaction
-//  tensor. Essentially, it will be a supermatrix of dimension 
-//  nPolSites x nPolSites. Each element "ij" would correspond to the derivative
-//  of the tensor T(ij) and hence of dimensions 3x3x3. Due to the symmetry of 
-//  the T(ij) element, only 6x3 matrix would suffice in principle
+//  Functions for providing the derivative matrix of the dipole_dipole interaction
+//  tensor. This datastructure will be a supermatrix of dimensions 
+//  nPolSites x nPolSites. Each element "ij" corresponds to the derivative
+//  of the tensor T(ij) and hence has dimensions of 3x3x3. Due to the symmetry of 
+//  the T(ij) element, this can be reduced to  a 6x3 matrix in principle.
 //
+///
+///////////////////////////////////////////////////////////////////////////////
 void BuildSuperdT(int nPolSites, const double *R, const double *alpha, double aThole, double *A_x ,double *A_y , double *A_z );
 void CalcdT(double *TDerivXX , double *TDerivYY , double *TDerivZZ ,
                                 double *TDerivXY , double *TDerivYZ , double *TDerivXZ ,
                                 double *Rij, double alpha_i, double alpha_j, double aThole) ; 
+//These should be declared in a header file, not here.
 
-
-void BuildSuperdT(int nPolSites, const double *R, const double *alpha, double aThole, double *A_x ,double *A_y , double *A_z )
+void BuildSuperdT(int nPolSites,/// The number of polarizable sites.
+                  const double *R, /// Distance for all sites
+                  const double *alpha, /// vector of dipole values. This is the C way of declaring vectors, which make us open to memory leaks. We should update this. They are declared as dvecs as defined in ClusterAnion.cpp
+                  double aThole, ///  Thole's damping parameter
+                  double *A_x ,/// Derivative of T in x as first dimension. This is the C way of declaring vectors, which make us open to memory leaks. We should update this. They are declared as dvecs as defined in ClusterAnion.cpp
+                  double *A_y , /// Derivative of T in y as first dimension. This is the C way of declaring vectors, which make us open to memory leaks. We should update this. They are declared as dvecs as defined in ClusterAnion.cpp
+                  double *A_z ///  Derivative of T in z as first dimension. This is the C way of declaring vectors, which make us open to memory leaks. We should update this. They are declared as dvecs as defined in ClusterAnion.cpp
+                  )
+///////////////////////////////////////////////////////////////////////////////
+/// Builds the super matrix of derivatives.
+///////////////////////////////////////////////////////////////////////////////
 {
-
+  // Dimension of super-matrix A would be n x n x 27 
   int n = nPolSites;
-// dimension of super-matrix A would be n x n x 27 
-
+  // Initializing each element of the supermatrix, A, being stored as an array in x,y, and z.
+  // Ax, Ay, and Az, are one the first 3 dimension, i. The other dimensions of the matrix  (j), and each component of the supermatrix are stored as an array/vector.
   for (int k = 0; k < n*n*9; ++k)
-{      A_x[k] = 0.0;
-      A_y[k] = 0.0;
-      A_z[k] = 0.0; }
-
+  {     A_x[k] = 0.0;
+        A_y[k] = 0.0;
+        A_z[k] = 0.0; }
+  // for each site, declare a variable to hold the derivative (TDeriv**) and one descriving the distance for this specific site (Rij)
   for (int j = 0; j < n; ++j) {
       for (int i =0 ; i < n ; ++i) {
         if (i != j){
-          double Rij[3]; 
-          double TDerivXX[3] ;
+          double Rij[3];  // getting distance for just a site
+          double TDerivXX[3] ; // it seems as though these are also supposed to be dvecs or len(3), these are the C way of defining, also prone to memory leaks.
           double TDerivXY[3] ;
           double TDerivXZ[3] ;
           double TDerivYY[3] ;
@@ -49,11 +65,10 @@ void BuildSuperdT(int nPolSites, const double *R, const double *alpha, double aT
           Rij[0] = R[3*j+0] - R[3*i+0];
           Rij[1] = R[3*j+1] - R[3*i+1];
           Rij[2] = R[3*j+2] - R[3*i+2];
-
+          // This will set the values of TDeriv and then assign them to the supermatrix, A, below.
           CalcdT( TDerivXX , TDerivYY , TDerivZZ ,
                   TDerivXY , TDerivYZ , TDerivXZ ,
                   Rij, alpha[i], alpha[j], aThole) ; 
-
 /*
 
           A_x[j*n*9+i*9+0]  = TDerivXX[0] ;
@@ -180,9 +195,16 @@ void BuildSuperdT(int nPolSites, const double *R, const double *alpha, double aT
 }
 
     
-void CalcdT(double *TDerivXX , double *TDerivYY , double *TDerivZZ ,
-                                double *TDerivXY , double *TDerivYZ , double *TDerivXZ ,
-                                double *Rij, double alpha_i, double alpha_j, double aThole)
+void CalcdT(double *TDerivXX, /// vector of doubles len 3 for derivatives in XX direction of T 
+            double *TDerivYY, /// vector of doubles len 3 for derivatives in YY direction of T
+            double *TDerivZZ, /// vector of doubles len 3 for derivatives in ZZ direction of T
+            double *TDerivXY, /// vector of doubles len 3 for derivatives in XY direction of T 
+            double *TDerivYZ, /// vector of doubles len 3 for derivatives in YZ direction of T
+            double *TDerivXZ, /// vector of doubles len 3 for derivatives in XZ direction of T
+            double *Rij, /// distance between site i and j
+            double alpha_i, /// dipole value at site i
+            double alpha_j, /// dipole value at site j
+            double aThole) ///  Thole's damping parameter
 {
   double rij2 = Rij[0]*Rij[0] + Rij[1]*Rij[1] + Rij[2]*Rij[2];
   double rij  = sqrt(rij2);
